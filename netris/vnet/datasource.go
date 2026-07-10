@@ -177,6 +177,7 @@ func DataResource() *schema.Resource {
 					},
 				},
 			},
+			"ipv6nd": ipv6NDSchema(true),
 		},
 		Read:   dataResourceRead,
 		Exists: dataResourceExists,
@@ -225,6 +226,10 @@ func dataResourceRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 	err = d.Set("ipfamily", vnet.IPFamily)
+	if err != nil {
+		return err
+	}
+	err = d.Set("ipv6nd", flattenIPv6ND(vnet.IPv6ND))
 	if err != nil {
 		return err
 	}

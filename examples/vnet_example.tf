@@ -31,6 +31,27 @@ resource "netris_vnet" "my-vnet" {
       # accessmode = true
     }
   }
+  ipv6nd {
+    routeradvertisement {
+      mode                  = "enabled"
+      routerlifetime        = "1800"
+      advertisementinterval = "600"
+      managedconfig         = true
+      otherconfig           = true
+    }
+    prefixadvertisement {
+      enabled           = true
+      preferredlifetime = "604800"
+      validlifetime     = "2592000"
+      autoconfig        = true
+    }
+    rdnss {
+      enabled    = true
+      dnsservers = ["2001:db8:acad::1", "2001:db8:acad::2"]
+      lifetime   = "1800"
+      # infinite = true # when true, lifetime is ignored
+    }
+  }
   depends_on = [
     netris_switch.my-switch01,
     netris_switch.my-switch02,

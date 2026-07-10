@@ -38,6 +38,26 @@ func validateIPFamily(val interface{}, key string) (warns []string, errs []error
 	return warns, errs
 }
 
+func validateIPv6NDRAMode(val interface{}, key string) (warns []string, errs []error) {
+	v := val.(string)
+	if !(v == "default" || v == "enabled" || v == "disabled") {
+		errs = append(errs, fmt.Errorf("'%s' must be default, enabled, or disabled, got: %s", key, v))
+	}
+	return warns, errs
+}
+
+func validateNonNegativeIntString(val interface{}, key string) (warns []string, errs []error) {
+	v := val.(string)
+	if v == "" {
+		return warns, errs
+	}
+	i, err := strconv.Atoi(v)
+	if err != nil || i < 0 {
+		errs = append(errs, fmt.Errorf("'%s' must be an empty string or a non-negative integer, got: %s", key, v))
+	}
+	return warns, errs
+}
+
 func validateVlanID(val interface{}, key string) (warns []string, errs []error) {
 	v := val.(string)
 	if v == "auto" || v == "disabled" {
