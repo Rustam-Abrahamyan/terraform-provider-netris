@@ -34,6 +34,8 @@ data "netris_vnet" "my-vnet" {
 - **state** (String) V-Net state.
 - **tenantid** (Number) ID of tenant. Users of this tenant will be permitted to edit this unit.
 - **dhcprelay** (Block List) DHCP Relay configuration for the V-Net. Enabling DHCP Relay disables DHCP configuration under Gateways. (see [below for nested schema](#nestedblock--dhcprelay))
+- **dhcpv6relay** (Block List) DHCPv6 Relay configuration for the V-Net. Enabling DHCPv6 Relay requires an IPv6 Gateway on the V-Net. (see [below for nested schema](#nestedblock--dhcpv6relay))
+- **ipv6nd** (Block List) IPv6 Neighbor Discovery configuration. (see [below for nested schema](#nestedblock--ipv6nd))
 
 <a id="nestedblock--sites"></a>
 ### Nested Schema for `sites`
@@ -68,3 +70,53 @@ Attribute Reference
 - **vpcid** (Number) ID of the VPC where the DHCP Relay servers reside.
 - **primaryaddr** (String) Primary DHCP Relay address.
 - **secondaryaddr** (String) Secondary DHCP Relay address.
+
+<a id="nestedblock--dhcpv6relay"></a>
+### Nested Schema for `dhcpv6relay`
+
+Attribute Reference
+
+- **enabled** (Boolean) Whether DHCPv6 Relay is enabled for this V-Net.
+- **vpcid** (Number) ID of the VPC where the DHCPv6 Relay servers reside.
+- **primaryaddr** (String) Primary DHCPv6 Relay address.
+- **secondaryaddr** (String) Secondary DHCPv6 Relay address.
+
+<a id="nestedblock--ipv6nd"></a>
+### Nested Schema for `ipv6nd`
+
+Attribute Reference
+
+- **routeradvertisement** (Block List) Router Advertisement configuration. (see [below for nested schema](#nestedblock--ipv6nd--routeradvertisement))
+- **prefixadvertisement** (Block List) Prefix Information advertised in Router Advertisements. (see [below for nested schema](#nestedblock--ipv6nd--prefixadvertisement))
+- **rdnss** (Block List) Recursive DNS Server (RDNSS) advertisement configuration. (see [below for nested schema](#nestedblock--ipv6nd--rdnss))
+
+<a id="nestedblock--ipv6nd--routeradvertisement"></a>
+### Nested Schema for `ipv6nd.routeradvertisement`
+
+Attribute Reference
+
+- **mode** (String) Router Advertisement mode (`default`, `enabled`, or `disabled`).
+- **routerlifetime** (String) Router lifetime in seconds.
+- **advertisementinterval** (String) Interval between unsolicited Router Advertisements in seconds.
+- **managedconfig** (Boolean) Managed address configuration flag.
+- **otherconfig** (Boolean) Other configuration flag.
+
+<a id="nestedblock--ipv6nd--prefixadvertisement"></a>
+### Nested Schema for `ipv6nd.prefixadvertisement`
+
+Attribute Reference
+
+- **enabled** (Boolean) Whether Prefix Information is advertised in Router Advertisements.
+- **preferredlifetime** (String) Preferred lifetime of the advertised prefix in seconds.
+- **validlifetime** (String) Valid lifetime of the advertised prefix in seconds.
+- **autoconfig** (Boolean) Autonomous address configuration flag.
+
+<a id="nestedblock--ipv6nd--rdnss"></a>
+### Nested Schema for `ipv6nd.rdnss`
+
+Attribute Reference
+
+- **enabled** (Boolean) Whether Recursive DNS Server entries are advertised.
+- **dnsservers** (List of String) IPv6 DNS servers to advertise.
+- **lifetime** (String) Lifetime of advertised RDNSS (DNS Server) entries in seconds.
+- **infinite** (Boolean) Whether the RDNSS (DNS Server) lifetime is advertised as infinite.

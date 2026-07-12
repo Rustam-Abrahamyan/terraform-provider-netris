@@ -54,6 +54,26 @@ resource "netris_vnet" "my-vnet" {
       accessmode = true
     }
   }
+  ipv6nd {
+    routeradvertisement {
+      mode                  = "enabled"
+      routerlifetime        = "1800"
+      advertisementinterval = "600"
+      managedconfig         = true
+      otherconfig           = true
+    }
+    prefixadvertisement {
+      enabled           = true
+      preferredlifetime = "604800"
+      validlifetime     = "2592000"
+      autoconfig        = true
+    }
+    rdnss {
+      enabled    = true
+      dnsservers = ["2001:db8:acad::1", "2001:db8:acad::2"]
+      lifetime   = "1800"
+    }
+  }
   depends_on = [
     netris_switch.my-sw01,
     netris_switch.my-sw02,
@@ -75,7 +95,9 @@ resource "netris_vnet" "my-vnet" {
 ### Optional
 
 - **dhcprelay** (Block List, Max: 1) DHCP Relay configuration. Enabling DHCP Relay disables DHCP configuration under Gateways. (see [below for nested schema](#nestedblock--dhcprelay))
+- **dhcpv6relay** (Block List, Max: 1) DHCPv6 Relay configuration. Enabling DHCPv6 Relay requires an IPv6 Gateway on the V-Net. (see [below for nested schema](#nestedblock--dhcpv6relay))
 - **ipfamily** (String) IP address family for the V-Net. Allowed values: `dual`, `ipv4`, or `ipv6`. Default value is `dual`.
+- **ipv6nd** (Block List, Max: 1) IPv6 Neighbor Discovery configuration. (see [below for nested schema](#nestedblock--ipv6nd))
 - **state** (String) V-Net state. Allowed values: `active` or `disabled`. Default value is `active`
 - **tags** (List of String) List of tags. Example `["foo", "bar"]`
 - **vlanid** (String) VLAN tag for all network interfaces of the vnet. Also can be `auto`, or `disabled`. If set `auto` the controller will assign a vlan ID  automatically.
@@ -91,6 +113,60 @@ Optional:
 - **vpcid** (Number) ID of the VPC where the DHCP Relay servers reside.
 - **primaryaddr** (String) Primary DHCP Relay address.
 - **secondaryaddr** (String) Secondary DHCP Relay address.
+
+
+<a id="nestedblock--dhcpv6relay"></a>
+### Nested Schema for `dhcpv6relay`
+
+Optional:
+
+- **enabled** (Boolean) Enable DHCPv6 Relay for this V-Net. Requires an IPv6 Gateway on the V-Net. Default value is `false`.
+- **vpcid** (Number) ID of the VPC where the DHCPv6 Relay servers reside.
+- **primaryaddr** (String) Primary DHCPv6 Relay address.
+- **secondaryaddr** (String) Secondary DHCPv6 Relay address.
+
+
+<a id="nestedblock--ipv6nd"></a>
+### Nested Schema for `ipv6nd`
+
+Optional:
+
+- **routeradvertisement** (Block List, Max: 1) Router Advertisement configuration. (see [below for nested schema](#nestedblock--ipv6nd--routeradvertisement))
+- **prefixadvertisement** (Block List, Max: 1) Prefix Information advertised in Router Advertisements. (see [below for nested schema](#nestedblock--ipv6nd--prefixadvertisement))
+- **rdnss** (Block List, Max: 1) Recursive DNS Server (RDNSS) advertisement configuration. (see [below for nested schema](#nestedblock--ipv6nd--rdnss))
+
+<a id="nestedblock--ipv6nd--routeradvertisement"></a>
+### Nested Schema for `ipv6nd.routeradvertisement`
+
+Optional:
+
+- **mode** (String) Router Advertisement mode. Allowed values: `default`, `enabled`, or `disabled`.
+- **routerlifetime** (String) Router lifetime in seconds. Use an empty value to use the platform default.
+- **advertisementinterval** (String) Interval between unsolicited Router Advertisements in seconds. Use an empty value to use the platform default.
+- **managedconfig** (Boolean) Managed address configuration flag.
+- **otherconfig** (Boolean) Other configuration flag.
+
+
+<a id="nestedblock--ipv6nd--prefixadvertisement"></a>
+### Nested Schema for `ipv6nd.prefixadvertisement`
+
+Optional:
+
+- **enabled** (Boolean) Enable Prefix Information in Router Advertisements.
+- **preferredlifetime** (String) Preferred lifetime of the advertised prefix in seconds. Use an empty value to use the platform default.
+- **validlifetime** (String) Valid lifetime of the advertised prefix in seconds. Use an empty value to use the platform default.
+- **autoconfig** (Boolean) Autonomous address configuration flag.
+
+
+<a id="nestedblock--ipv6nd--rdnss"></a>
+### Nested Schema for `ipv6nd.rdnss`
+
+Optional:
+
+- **enabled** (Boolean) Advertise Recursive DNS Server entries.
+- **dnsservers** (List of String) IPv6 DNS servers to advertise.
+- **lifetime** (String) Lifetime of advertised RDNSS (DNS Server) entries in seconds. Use an empty value to use the platform default. Ignored when `infinite` is set.
+- **infinite** (Boolean) Advertise the RDNSS (DNS Server) lifetime as infinite. When true, `lifetime` is ignored.
 
 
 <a id="nestedblock--sites"></a>

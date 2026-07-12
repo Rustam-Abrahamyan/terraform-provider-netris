@@ -31,6 +31,27 @@ resource "netris_vnet" "my-vnet" {
       # accessmode = true
     }
   }
+  ipv6nd {
+    routeradvertisement {
+      mode                  = "enabled"
+      routerlifetime        = "1800"
+      advertisementinterval = "600"
+      managedconfig         = true
+      otherconfig           = true
+    }
+    prefixadvertisement {
+      enabled           = true
+      preferredlifetime = "604800"
+      validlifetime     = "2592000"
+      autoconfig        = true
+    }
+    rdnss {
+      enabled    = true
+      dnsservers = ["2001:db8:acad::1", "2001:db8:acad::2"]
+      lifetime   = "1800"
+      # infinite = true # when true, lifetime is ignored
+    }
+  }
   depends_on = [
     netris_switch.my-switch01,
     netris_switch.my-switch02,
@@ -86,6 +107,12 @@ resource "netris_vnet" "my-vnet2" {
     primaryaddr = "192.168.10.1"
     secondaryaddr = "192.168.12.1"
   }
+  # dhcpv6relay {
+  #   enabled = true
+  #   vpcid = 1
+  #   primaryaddr = "2001:db8::1"
+  #   secondaryaddr = "2001:db8::2"
+  # }
   sites {
     id = netris_site.santa-clara.id
     gateways {

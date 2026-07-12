@@ -274,6 +274,39 @@ func Resource() *schema.Resource {
 					},
 				},
 			},
+			"dhcpv6relay": {
+				Optional:    true,
+				Computed:    true,
+				MaxItems:    1,
+				Type:        schema.TypeList,
+				Description: "DHCPv6 Relay configuration. Enabling DHCPv6 Relay requires an IPv6 Gateway on the V-Net.",
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"enabled": {
+							Type:        schema.TypeBool,
+							Optional:    true,
+							Default:     false,
+							Description: "Enable DHCPv6 Relay for this V-Net. Requires an IPv6 Gateway on the V-Net. Default value is `false`.",
+						},
+						"vpcid": {
+							Type:        schema.TypeInt,
+							Optional:    true,
+							Description: "ID of the VPC where the DHCPv6 Relay servers reside.",
+						},
+						"primaryaddr": {
+							Type:        schema.TypeString,
+							Optional:    true,
+							Description: "Primary DHCPv6 Relay address.",
+						},
+						"secondaryaddr": {
+							Type:        schema.TypeString,
+							Optional:    true,
+							Description: "Secondary DHCPv6 Relay address.",
+						},
+					},
+				},
+			},
+			"ipv6nd": ipv6NDSchema(true),
 		},
 		Create: resourceCreate,
 		Read:   resourceRead,
@@ -287,6 +320,137 @@ func Resource() *schema.Resource {
 	}
 }
 
+func ipv6NDSchema(computed bool) *schema.Schema {
+	return &schema.Schema{
+		Optional:    true,
+		Computed:    computed,
+		MaxItems:    1,
+		Type:        schema.TypeList,
+		Description: "IPv6 Neighbor Discovery configuration.",
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"routeradvertisement": {
+					Optional: true,
+					Computed: computed,
+					MaxItems: 1,
+					Type:     schema.TypeList,
+					Elem: &schema.Resource{
+						Schema: map[string]*schema.Schema{
+							"mode": {
+								Type:         schema.TypeString,
+								Optional:     true,
+								Computed:     computed,
+								ValidateFunc: validateIPv6NDRAMode,
+								Description:  "Router Advertisement mode. Allowed values: `default`, `enabled`, or `disabled`.",
+							},
+							"routerlifetime": {
+								Type:         schema.TypeString,
+								Optional:     true,
+								Computed:     computed,
+								ValidateFunc: validateNonNegativeIntString,
+								Description:  "Router lifetime in seconds. Use an empty value to use the platform default.",
+							},
+							"advertisementinterval": {
+								Type:         schema.TypeString,
+								Optional:     true,
+								Computed:     computed,
+								ValidateFunc: validateNonNegativeIntString,
+								Description:  "Interval between unsolicited Router Advertisements in seconds. Use an empty value to use the platform default.",
+							},
+							"managedconfig": {
+								Type:        schema.TypeBool,
+								Optional:    true,
+								Computed:    computed,
+								Description: "Managed address configuration flag.",
+							},
+							"otherconfig": {
+								Type:        schema.TypeBool,
+								Optional:    true,
+								Computed:    computed,
+								Description: "Other configuration flag.",
+							},
+						},
+					},
+				},
+				"prefixadvertisement": {
+					Optional: true,
+					Computed: computed,
+					MaxItems: 1,
+					Type:     schema.TypeList,
+					Elem: &schema.Resource{
+						Schema: map[string]*schema.Schema{
+							"enabled": {
+								Type:        schema.TypeBool,
+								Optional:    true,
+								Computed:    computed,
+								Description: "Enable Prefix Information in Router Advertisements.",
+							},
+							"preferredlifetime": {
+								Type:         schema.TypeString,
+								Optional:     true,
+								Computed:     computed,
+								ValidateFunc: validateNonNegativeIntString,
+								Description:  "Preferred lifetime of the advertised prefix in seconds. Use an empty value to use the platform default.",
+							},
+							"validlifetime": {
+								Type:         schema.TypeString,
+								Optional:     true,
+								Computed:     computed,
+								ValidateFunc: validateNonNegativeIntString,
+								Description:  "Valid lifetime of the advertised prefix in seconds. Use an empty value to use the platform default.",
+							},
+							"autoconfig": {
+								Type:        schema.TypeBool,
+								Optional:    true,
+								Computed:    computed,
+								Description: "Autonomous address configuration flag.",
+							},
+						},
+					},
+				},
+				"rdnss": {
+					Optional: true,
+					Computed: computed,
+					MaxItems: 1,
+					Type:     schema.TypeList,
+					Elem: &schema.Resource{
+						Schema: map[string]*schema.Schema{
+							"enabled": {
+								Type:        schema.TypeBool,
+								Optional:    true,
+								Computed:    computed,
+								Description: "Advertise Recursive DNS Server entries.",
+							},
+							"dnsservers": {
+								Type:        schema.TypeList,
+								Optional:    true,
+								Computed:    computed,
+								Description: "IPv6 DNS servers to advertise.",
+								Elem: &schema.Schema{
+									Type: schema.TypeString,
+								},
+							},
+							"lifetime": {
+								Type:         schema.TypeString,
+								Optional:     true,
+								Computed:     computed,
+								ValidateFunc: validateNonNegativeIntString,
+								Description:  "Lifetime of advertised RDNSS (DNS Server) entries in seconds. Use an empty value to use the platform default. Ignored when `infinite` is set.",
+							},
+							"infinite": {
+								Type:        schema.TypeBool,
+								Optional:    true,
+								Computed:    computed,
+								Description: "Advertise the RDNSS (DNS Server) lifetime as infinite. When true, `lifetime` is ignored.",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 // strVal dereferences a *string, returning "" for a nil pointer.
 func strVal(s *string) string {
 	if s == nil {
@@ -295,33 +459,63 @@ func strVal(s *string) string {
 	return *s
 }
 
-// customizeDiff normalizes a disabled dhcprelay block. When enabled = false the
-// other properties are meaningless, so they are forced to their zero values in
-// the plan. This matches what read stores and what getDhcpRelay sends (the
-// relay object with enabled = false and null properties), so a disabled block
-// left in the configuration - even with stale vpcid/addresses - does not
-// produce a perpetual diff. dhcprelay is Computed so SetNew is permitted on it.
+// customizeDiff normalizes a disabled dhcprelay/dhcpv6relay block. When
+// enabled = false the other properties are meaningless, so they are forced to
+// their zero values in the plan. This matches what read stores and what
+// getDhcpRelay/getDhcpv6Relay send (the relay object with enabled = false and
+// null properties), so a disabled block left in the configuration - even with
+// stale vpcid/addresses - does not produce a perpetual diff. The blocks are
+// Computed so SetNew is permitted on them.
 func customizeDiff(d *schema.ResourceDiff, m interface{}) error {
-	relays := d.Get("dhcprelay").([]interface{})
-	if len(relays) == 0 || relays[0] == nil {
-		return nil
+	for _, key := range []string{"dhcprelay", "dhcpv6relay"} {
+		relays := d.Get(key).([]interface{})
+		if len(relays) == 0 || relays[0] == nil {
+			continue
+		}
+		r := relays[0].(map[string]interface{})
+		if !r["enabled"].(bool) {
+			err := d.SetNew(key, []interface{}{
+				map[string]interface{}{
+					"enabled":       false,
+					"vpcid":         0,
+					"primaryaddr":   "",
+					"secondaryaddr": "",
+				},
+			})
+			if err != nil {
+				return err
+			}
+		}
 	}
-	r := relays[0].(map[string]interface{})
-	if !r["enabled"].(bool) {
-		return d.SetNew("dhcprelay", []interface{}{
-			map[string]interface{}{
-				"enabled":       false,
-				"vpcid":         0,
-				"primaryaddr":   "",
-				"secondaryaddr": "",
-			},
-		})
-	}
-	return nil
-}
 
-func DiffSuppress(k, old, new string, d *schema.ResourceData) bool {
-	return true
+	if nd := firstBlock(d.Get("ipv6nd")); nd != nil {
+		if ra := firstBlock(nd["routeradvertisement"]); ra != nil && blockString(ra, "mode") == "disabled" {
+			ra["routerlifetime"] = ""
+			ra["advertisementinterval"] = ""
+			ra["managedconfig"] = false
+			ra["otherconfig"] = false
+
+			if pa := firstBlock(nd["prefixadvertisement"]); pa != nil {
+				pa["enabled"] = false
+				pa["preferredlifetime"] = ""
+				pa["validlifetime"] = ""
+				pa["autoconfig"] = false
+			}
+
+			if r := firstBlock(nd["rdnss"]); r != nil {
+				r["enabled"] = false
+				r["dnsservers"] = []string{}
+				r["lifetime"] = ""
+				r["infinite"] = false
+			}
+
+			if err := d.SetNew("ipv6nd", []interface{}{nd}); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 // getDhcpRelay builds a DHCP Relay payload from the resource data. It returns
@@ -347,6 +541,212 @@ func getDhcpRelay(d *schema.ResourceData) *vnet.VNetDhcpRelay {
 		PrimaryAddr:   &primary,
 		SecondaryAddr: &secondary,
 	}
+}
+
+// getDhcpv6Relay builds a DHCPv6 Relay payload from the resource data. It
+// behaves exactly like getDhcpRelay but for the dhcpv6relay block: it returns
+// nil only when no block is configured, an object with enabled = false and null
+// properties when the block is present but disabled, and a fully populated
+// object when enabled.
+func getDhcpv6Relay(d *schema.ResourceData) *vnet.VNetDhcpv6Relay {
+	relays := d.Get("dhcpv6relay").([]interface{})
+	if len(relays) == 0 || relays[0] == nil {
+		return nil
+	}
+	r := relays[0].(map[string]interface{})
+	if !r["enabled"].(bool) {
+		return &vnet.VNetDhcpv6Relay{Enabled: false}
+	}
+	primary := r["primaryaddr"].(string)
+	secondary := r["secondaryaddr"].(string)
+	return &vnet.VNetDhcpv6Relay{
+		Enabled:       true,
+		Vpc:           &vnet.IDName{ID: r["vpcid"].(int)},
+		PrimaryAddr:   &primary,
+		SecondaryAddr: &secondary,
+	}
+}
+
+func intStringPtr(v string) *int {
+	if v == "" {
+		return nil
+	}
+	i, err := strconv.Atoi(v)
+	if err != nil {
+		return nil
+	}
+	return &i
+}
+
+func ptrIntString(i *int) string {
+	if i == nil {
+		return ""
+	}
+	return strconv.Itoa(*i)
+}
+
+func secondsObj(v string) *vnet.VNetIPv6NDSeconds {
+	return &vnet.VNetIPv6NDSeconds{Seconds: intStringPtr(v)}
+}
+
+func lifetimeObj(v string, infinite bool) *vnet.VNetIPv6NDLifetime {
+	seconds := intStringPtr(v)
+	if infinite {
+		seconds = nil
+	}
+	return &vnet.VNetIPv6NDLifetime{Seconds: seconds, Infinite: infinite}
+}
+
+func secondsStr(s *vnet.VNetIPv6NDSeconds) string {
+	if s == nil {
+		return ""
+	}
+	return ptrIntString(s.Seconds)
+}
+
+func lifetimeStr(l *vnet.VNetIPv6NDLifetime) string {
+	if l == nil {
+		return ""
+	}
+	return ptrIntString(l.Seconds)
+}
+
+func lifetimeInfinite(l *vnet.VNetIPv6NDLifetime) bool {
+	if l == nil {
+		return false
+	}
+	return l.Infinite
+}
+
+func firstBlock(v interface{}) map[string]interface{} {
+	blocks, ok := v.([]interface{})
+	if !ok || len(blocks) == 0 || blocks[0] == nil {
+		return nil
+	}
+	block, ok := blocks[0].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return block
+}
+
+func blockString(m map[string]interface{}, key string) string {
+	if v, ok := m[key].(string); ok {
+		return v
+	}
+	return ""
+}
+
+func blockBool(m map[string]interface{}, key string) bool {
+	if v, ok := m[key].(bool); ok {
+		return v
+	}
+	return false
+}
+
+func getIPv6ND(d *schema.ResourceData) *vnet.VNetIPv6ND {
+	nd := firstBlock(d.Get("ipv6nd"))
+	if nd == nil {
+		return nil
+	}
+
+	ra := firstBlock(nd["routeradvertisement"])
+	if ra == nil {
+		ra = map[string]interface{}{}
+	}
+	pa := firstBlock(nd["prefixadvertisement"])
+	if pa == nil {
+		pa = map[string]interface{}{}
+	}
+	rdnss := firstBlock(nd["rdnss"])
+	if rdnss == nil {
+		rdnss = map[string]interface{}{}
+	}
+
+	mode := "default"
+	if v := blockString(ra, "mode"); v != "" {
+		mode = v
+	}
+
+	dnsServers := []string{}
+	if servers, ok := rdnss["dnsservers"].([]interface{}); ok {
+		for _, server := range servers {
+			dnsServers = append(dnsServers, server.(string))
+		}
+	}
+
+	return &vnet.VNetIPv6ND{
+		RouterAdvertisement: &vnet.VNetIPv6NDRouterAdvertisement{
+			Mode:                  mode,
+			RouterLifetime:        secondsObj(blockString(ra, "routerlifetime")),
+			AdvertisementInterval: secondsObj(blockString(ra, "advertisementinterval")),
+			ManagedConfig:         blockBool(ra, "managedconfig"),
+			OtherConfig:           blockBool(ra, "otherconfig"),
+		},
+		PrefixAdvertisement: &vnet.VNetIPv6NDPrefixAdvertisement{
+			Enabled:           blockBool(pa, "enabled"),
+			PreferredLifetime: secondsObj(blockString(pa, "preferredlifetime")),
+			ValidLifetime:     secondsObj(blockString(pa, "validlifetime")),
+			Autoconfig:        blockBool(pa, "autoconfig"),
+		},
+		RDNSS: &vnet.VNetIPv6NDRDNSS{
+			Enabled:    blockBool(rdnss, "enabled"),
+			DNSServers: dnsServers,
+			Lifetime:   lifetimeObj(blockString(rdnss, "lifetime"), blockBool(rdnss, "infinite")),
+		},
+	}
+}
+
+func flattenIPv6ND(nd *vnet.VNetIPv6ND) []map[string]interface{} {
+	if nd == nil {
+		return nil
+	}
+	ra := nd.RouterAdvertisement
+	if ra == nil {
+		ra = &vnet.VNetIPv6NDRouterAdvertisement{Mode: "default"}
+	}
+	pa := nd.PrefixAdvertisement
+	if pa == nil {
+		pa = &vnet.VNetIPv6NDPrefixAdvertisement{}
+	}
+	rdnss := nd.RDNSS
+	if rdnss == nil {
+		rdnss = &vnet.VNetIPv6NDRDNSS{}
+	}
+
+	return []map[string]interface{}{
+		{
+			"routeradvertisement": []map[string]interface{}{
+				{
+					"mode":                  ra.Mode,
+					"routerlifetime":        secondsStr(ra.RouterLifetime),
+					"advertisementinterval": secondsStr(ra.AdvertisementInterval),
+					"managedconfig":         ra.ManagedConfig,
+					"otherconfig":           ra.OtherConfig,
+				},
+			},
+			"prefixadvertisement": []map[string]interface{}{
+				{
+					"enabled":           pa.Enabled,
+					"preferredlifetime": secondsStr(pa.PreferredLifetime),
+					"validlifetime":     secondsStr(pa.ValidLifetime),
+					"autoconfig":        pa.Autoconfig,
+				},
+			},
+			"rdnss": []map[string]interface{}{
+				{
+					"enabled":    rdnss.Enabled,
+					"dnsservers": rdnss.DNSServers,
+					"lifetime":   lifetimeStr(rdnss.Lifetime),
+					"infinite":   lifetimeInfinite(rdnss.Lifetime),
+				},
+			},
+		},
+	}
+}
+
+func DiffSuppress(k, old, new string, d *schema.ResourceData) bool {
+	return true
 }
 
 func resourceCreate(d *schema.ResourceData, m interface{}) error {
@@ -504,6 +904,8 @@ func resourceCreate(d *schema.ResourceData, m interface{}) error {
 	}
 
 	vnetAdd.DhcpRelay = getDhcpRelay(d)
+	vnetAdd.Dhcpv6Relay = getDhcpv6Relay(d)
+	vnetAdd.IPv6ND = getIPv6ND(d)
 
 	js, _ := json.Marshal(vnetAdd)
 	log.Println("[DEBUG]", string(js))
@@ -570,6 +972,10 @@ func resourceRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 	err = d.Set("ipfamily", vnetresp.IPFamily)
+	if err != nil {
+		return err
+	}
+	err = d.Set("ipv6nd", flattenIPv6ND(vnetresp.IPv6ND))
 	if err != nil {
 		return err
 	}
@@ -812,6 +1218,37 @@ func resourceRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
+	var dhcpv6Relay []map[string]interface{}
+	if vnetresp.Dhcpv6Relay != nil {
+		relayConfigured := len(d.Get("dhcpv6relay").([]interface{})) > 0
+		if vnetresp.Dhcpv6Relay.Enabled {
+			vpcID := 0
+			if vnetresp.Dhcpv6Relay.Vpc != nil {
+				vpcID = vnetresp.Dhcpv6Relay.Vpc.ID
+			}
+			dhcpv6Relay = append(dhcpv6Relay, map[string]interface{}{
+				"enabled":       true,
+				"vpcid":         vpcID,
+				"primaryaddr":   strVal(vnetresp.Dhcpv6Relay.PrimaryAddr),
+				"secondaryaddr": strVal(vnetresp.Dhcpv6Relay.SecondaryAddr),
+			})
+		} else if relayConfigured {
+			// Relay is disabled but a block is present in the configuration.
+			// Store it normalized (other properties zeroed) so it matches the
+			// planned value and does not produce a perpetual diff.
+			dhcpv6Relay = append(dhcpv6Relay, map[string]interface{}{
+				"enabled":       false,
+				"vpcid":         0,
+				"primaryaddr":   "",
+				"secondaryaddr": "",
+			})
+		}
+	}
+	err = d.Set("dhcpv6relay", dhcpv6Relay)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -1011,6 +1448,8 @@ func resourceUpdate(d *schema.ResourceData, m interface{}) error {
 		VxlanID:      vxlanid,
 		PortTags:     portTagsList,
 		DhcpRelay:    getDhcpRelay(d),
+		Dhcpv6Relay:  getDhcpv6Relay(d),
+		IPv6ND:       getIPv6ND(d),
 	}
 
 	js, _ := json.Marshal(vnetUpdate)
