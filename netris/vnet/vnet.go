@@ -489,7 +489,8 @@ func customizeDiff(d *schema.ResourceDiff, m interface{}) error {
 	}
 
 	if nd := firstBlock(d.Get("ipv6nd")); nd != nil {
-		if ra := firstBlock(nd["routeradvertisement"]); ra != nil && blockString(ra, "mode") == "disabled" {
+		if ra := firstBlock(nd["routeradvertisement"]); ra != nil && (blockString(ra, "mode") == "default" || blockString(ra, "mode") == "disabled") {
+			mode := blockString(ra, "mode")
 			ra["routerlifetime"] = ""
 			ra["advertisementinterval"] = ""
 			ra["managedconfig"] = false
@@ -509,6 +510,7 @@ func customizeDiff(d *schema.ResourceDiff, m interface{}) error {
 				r["infinite"] = false
 			}
 
+			ra["mode"] = mode
 			if err := d.SetNew("ipv6nd", []interface{}{nd}); err != nil {
 				return err
 			}
@@ -668,6 +670,16 @@ func getIPv6ND(d *schema.ResourceData) *vnet.VNetIPv6ND {
 		mode = v
 	}
 
+	if mode == "default" || mode == "disabled" {
+		return &vnet.VNetIPv6ND{
+			RouterAdvertisement: &vnet.VNetIPv6NDRouterAdvertisement{
+				Mode: mode,
+			},
+			PrefixAdvertisement: &vnet.VNetIPv6NDPrefixAdvertisement{},
+			RDNSS:               &vnet.VNetIPv6NDRDNSS{},
+		}
+	}
+
 	dnsServers := []string{}
 	if servers, ok := rdnss["dnsservers"].([]interface{}); ok {
 		for _, server := range servers {
@@ -712,6 +724,12 @@ func flattenIPv6ND(nd *vnet.VNetIPv6ND) []map[string]interface{} {
 	rdnss := nd.RDNSS
 	if rdnss == nil {
 		rdnss = &vnet.VNetIPv6NDRDNSS{}
+	}
+
+	if ra.Mode == "default" || ra.Mode == "disabled" {
+		pa = &vnet.VNetIPv6NDPrefixAdvertisement{}
+		rdnss = &vnet.VNetIPv6NDRDNSS{}
+		ra = &vnet.VNetIPv6NDRouterAdvertisement{Mode: ra.Mode}
 	}
 
 	return []map[string]interface{}{
