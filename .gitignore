@@ -2,3 +2,5 @@
 .DS_Store*
 scripts/
 terraform.tfstate*
+terraform-provider-netris
+examples*

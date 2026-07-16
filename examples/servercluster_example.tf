@@ -9,4 +9,11 @@ resource "netris_servercluster" "my-servercluster1" {
     netris_server.my-server01.id,
     netris_server.my-server02.id,
   ]
+
+  # Only needed when the referenced template has a VNet whose VLAN mode is
+  # "specify". One "vlan" block per such VNet postfix.
+  vlan {
+    postfix = "East-West"
+    vlan_id = 100
+  }
 }

@@ -78,6 +78,26 @@ func Resource() *schema.Resource {
 					Type: schema.TypeInt,
 				},
 			},
+			"vlan": {
+				Optional:    true,
+				ForceNew:    true,
+				Type:        schema.TypeSet,
+				Description: "Specifies the VLAN ID to use for a Server Cluster Template VNet whose VLAN mode is set to \"specify\". One block per VNet postfix.",
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"postfix": {
+							Type:        schema.TypeString,
+							Required:    true,
+							Description: "Postfix of the VNet, as defined in the Server Cluster Template.",
+						},
+						"vlan_id": {
+							Type:        schema.TypeInt,
+							Required:    true,
+							Description: "VLAN ID to assign to this VNet.",
+						},
+					},
+				},
+			},
 		},
 		Create: resourceCreate,
 		Read:   resourceRead,
@@ -92,6 +112,19 @@ func Resource() *schema.Resource {
 
 func DiffSuppress(k, old, new string, d *schema.ResourceData) bool {
 	return true
+}
+
+func expandVLANs(d *schema.ResourceData) []servercluster.VNetVLAN {
+	vlanList := d.Get("vlan").(*schema.Set).List()
+	vlans := make([]servercluster.VNetVLAN, 0, len(vlanList))
+	for _, v := range vlanList {
+		vlanMap := v.(map[string]interface{})
+		vlans = append(vlans, servercluster.VNetVLAN{
+			Postfix: vlanMap["postfix"].(string),
+			VLANID:  vlanMap["vlan_id"].(int),
+		})
+	}
+	return vlans
 }
 
 func resourceCreate(d *schema.ResourceData, m interface{}) error {
@@ -118,13 +151,14 @@ func resourceCreate(d *schema.ResourceData, m interface{}) error {
 	}
 
 	serverclusterAdd := &servercluster.ServerClusterW{
-		Name:               d.Get("name").(string),
-		Admin:              servercluster.IDName{ID: d.Get("adminid").(int)},
-		Site:               servercluster.IDName{ID: d.Get("siteid").(int)},
-		VPC:                servercluster.IDName{ID: d.Get("vpcid").(int)},
-		SrvClusterTemplate: servercluster.IDName{ID: d.Get("templateid").(int)},
-		Tags:               tags,
-		Servers:            sortedServers,
+		Name:                    d.Get("name").(string),
+		Admin:                   servercluster.IDName{ID: d.Get("adminid").(int)},
+		Site:                    servercluster.IDName{ID: d.Get("siteid").(int)},
+		VPC:                     servercluster.IDName{ID: d.Get("vpcid").(int)},
+		SrvClusterTemplate:      servercluster.IDName{ID: d.Get("templateid").(int)},
+		SrvClusterTemplateVLANs: expandVLANs(d),
+		Tags:                    tags,
+		Servers:                 sortedServers,
 	}
 
 	js, _ := json.Marshal(serverclusterAdd)
@@ -160,7 +194,7 @@ func resourceCreate(d *schema.ResourceData, m interface{}) error {
 	log.Println("[DEBUG] ID:", idStruct.ID)
 
 	if reply.StatusCode != 200 {
-		return fmt.Errorf(string(reply.Data))
+		return fmt.Errorf("%s", reply.Data)
 	}
 
 	d.SetId(strconv.Itoa(idStruct.ID))
@@ -214,6 +248,20 @@ func resourceRead(d *schema.ResourceData, m interface{}) error {
 	err = d.Set("servers", servers)
 	if err != nil {
 		return err
+	}
+
+	if d.Get("vlan").(*schema.Set).Len() == 0 && len(apiServerCluster.SrvClusterTemplate.VLANs) > 0 {
+		vlans := []interface{}{}
+		for _, vlan := range apiServerCluster.SrvClusterTemplate.VLANs {
+			vlans = append(vlans, map[string]interface{}{
+				"postfix": vlan.Postfix,
+				"vlan_id": vlan.VLANID,
+			})
+		}
+		err = d.Set("vlan", vlans)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -282,7 +330,7 @@ func resourceUpdate(d *schema.ResourceData, m interface{}) error {
 	log.Println("[DEBUG] ID:", idStruct.ID)
 
 	if reply.StatusCode != 200 {
-		return fmt.Errorf(string(reply.Data))
+		return fmt.Errorf("%s", reply.Data)
 	}
 
 	return nil
@@ -332,7 +380,7 @@ func resourceDelete(d *schema.ResourceData, m interface{}) error {
 	}
 
 	if reply.StatusCode != 200 {
-		return fmt.Errorf(string(reply.Data))
+		return fmt.Errorf("%s", reply.Data)
 	}
 
 	d.SetId("")
