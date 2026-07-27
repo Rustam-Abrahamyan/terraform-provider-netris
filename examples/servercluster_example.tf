@@ -5,6 +5,24 @@ resource "netris_servercluster" "my-servercluster1" {
   # vpcid      = netris_vpc.my-vpc.id
   templateid = netris_serverclustertemplate.my-serverclustertemplate1.id
   tags       = ["boo", "foo"]
+
+  # vpcmapping {
+  #   postfix = "East-West"
+  #   id      = netris_vpc.my-vpc.id
+  # }
+
+  # vpcmapping {
+  #   postfix = "North-South-in-band-and-storage"
+  #   id      = 0
+  #   group   = "cluster-private"
+  # }
+
+  # vpcmapping {
+  #   postfix = "OOB-Management"
+  #   id      = 0
+  #   group   = "cluster-private"
+  # }
+
   servers = [
     netris_server.my-server01.id,
     netris_server.my-server02.id,
