@@ -1,7 +1,6 @@
 resource "netris_site" "santa-clara" {
   name              = "Santa Clara"
   publicasn         = 65001
-  sitemesh          = "hub"
   acldefaultpolicy  = "permit"
   # switchfabric      = "equinix_metal"
   # # vlanrange         = "2-3999"

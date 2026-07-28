@@ -93,7 +93,6 @@ resource "netris_site" "santa-clara" {
   rohasn = 65502
   vmasn = 65503
   rohroutingprofile = "default"
-  sitemesh = "hub"
   acldefaultpolicy = "permit"
 }
 
