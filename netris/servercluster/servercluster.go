@@ -116,6 +116,7 @@ func Resource() *schema.Resource {
 			},
 			"vlan": {
 				Optional:    true,
+				Computed:    true,
 				ForceNew:    true,
 				Type:        schema.TypeSet,
 				Description: "Specifies the VLAN ID to use for a Server Cluster Template VNet whose VLAN mode is set to \"specify\". One block per VNet postfix.",
