@@ -58,6 +58,42 @@ func Resource() *schema.Resource {
 				Type:        schema.TypeInt,
 				Description: "ID of VPC. If not specified, a new VPC will be created.",
 			},
+			"vpcmapping": {
+				ForceNew:    true,
+				Computed:    true,
+				Optional:    true,
+				Type:        schema.TypeSet,
+				Description: "VPC mappings for server cluster template objects. Each VPC-backed template object postfix must be mapped exactly once when this block is used. Set id to an existing VPC ID, or set id to 0 to create a new VPC. Use group to place multiple template objects into the same new VPC.",
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"id": {
+							ForceNew:    true,
+							Computed:    true,
+							Optional:    true,
+							Type:        schema.TypeInt,
+							Description: "VPC ID. Use an existing VPC ID, or 0 to create a new VPC.",
+						},
+						"group": {
+							ForceNew:    true,
+							Optional:    true,
+							Type:        schema.TypeString,
+							Description: "Grouping key for new VPC mappings. Template objects with the same group are created in the same new VPC.",
+						},
+						"name": {
+							ForceNew:    true,
+							Optional:    true,
+							Type:        schema.TypeString,
+							Description: "VPC name. For new VPC mappings, this can override the generated VPC name.",
+						},
+						"postfix": {
+							ForceNew:    true,
+							Required:    true,
+							Type:        schema.TypeString,
+							Description: "Server cluster template object postfix.",
+						},
+					},
+				},
+			},
 			"templateid": {
 				ForceNew:    true,
 				Required:    true,
@@ -78,6 +114,27 @@ func Resource() *schema.Resource {
 					Type: schema.TypeInt,
 				},
 			},
+			"vlan": {
+				Optional:    true,
+				Computed:    true,
+				ForceNew:    true,
+				Type:        schema.TypeSet,
+				Description: "Specifies the VLAN ID to use for a Server Cluster Template VNet whose VLAN mode is set to \"specify\". One block per VNet postfix.",
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"postfix": {
+							Type:        schema.TypeString,
+							Required:    true,
+							Description: "Postfix of the VNet, as defined in the Server Cluster Template.",
+						},
+						"vlan_id": {
+							Type:        schema.TypeInt,
+							Required:    true,
+							Description: "VLAN ID to assign to this VNet.",
+						},
+					},
+				},
+			},
 		},
 		Create: resourceCreate,
 		Read:   resourceRead,
@@ -92,6 +149,70 @@ func Resource() *schema.Resource {
 
 func DiffSuppress(k, old, new string, d *schema.ResourceData) bool {
 	return true
+}
+
+func expandVLANs(d *schema.ResourceData) []servercluster.VNetVLAN {
+	vlanList := d.Get("vlan").(*schema.Set).List()
+	vlans := make([]servercluster.VNetVLAN, 0, len(vlanList))
+	for _, v := range vlanList {
+		vlanMap := v.(map[string]interface{})
+		vlans = append(vlans, servercluster.VNetVLAN{
+			Postfix: vlanMap["postfix"].(string),
+			VLANID:  vlanMap["vlan_id"].(int),
+		})
+	}
+	return vlans
+}
+
+func expandVPCMappings(mappingsList []interface{}) []servercluster.VPCMapping {
+	mappings := []servercluster.VPCMapping{}
+	for _, item := range mappingsList {
+		mappingMap := item.(map[string]interface{})
+		mapping := servercluster.VPCMapping{
+			ID:      mappingMap["id"].(int),
+			Postfix: mappingMap["postfix"].(string),
+		}
+
+		if group, ok := mappingMap["group"].(string); ok {
+			mapping.Group = group
+		}
+		if name, ok := mappingMap["name"].(string); ok {
+			mapping.Name = name
+		}
+
+		mappings = append(mappings, mapping)
+	}
+
+	sort.Slice(mappings, func(i, j int) bool {
+		return mappings[i].Postfix < mappings[j].Postfix
+	})
+
+	return mappings
+}
+
+func flattenVPCMappings(mappings []servercluster.VPCMapping) []map[string]interface{} {
+	flattenedMappings := []map[string]interface{}{}
+	for _, mapping := range mappings {
+		flattenedMapping := map[string]interface{}{
+			"id":      mapping.ID,
+			"postfix": mapping.Postfix,
+		}
+
+		if mapping.Group != "" {
+			flattenedMapping["group"] = mapping.Group
+		}
+		if mapping.Name != "" {
+			flattenedMapping["name"] = mapping.Name
+		}
+
+		flattenedMappings = append(flattenedMappings, flattenedMapping)
+	}
+
+	sort.Slice(flattenedMappings, func(i, j int) bool {
+		return flattenedMappings[i]["postfix"].(string) < flattenedMappings[j]["postfix"].(string)
+	})
+
+	return flattenedMappings
 }
 
 func resourceCreate(d *schema.ResourceData, m interface{}) error {
@@ -109,6 +230,7 @@ func resourceCreate(d *schema.ResourceData, m interface{}) error {
 	for _, server := range serversList {
 		servers = append(servers, server.(int))
 	}
+	vpcMappings := expandVPCMappings(d.Get("vpcmapping").(*schema.Set).List())
 
 	sort.Ints(servers)
 	sortedServers := []servercluster.Servers{}
@@ -118,13 +240,15 @@ func resourceCreate(d *schema.ResourceData, m interface{}) error {
 	}
 
 	serverclusterAdd := &servercluster.ServerClusterW{
-		Name:               d.Get("name").(string),
-		Admin:              servercluster.IDName{ID: d.Get("adminid").(int)},
-		Site:               servercluster.IDName{ID: d.Get("siteid").(int)},
-		VPC:                servercluster.IDName{ID: d.Get("vpcid").(int)},
-		SrvClusterTemplate: servercluster.IDName{ID: d.Get("templateid").(int)},
-		Tags:               tags,
-		Servers:            sortedServers,
+		Name:                    d.Get("name").(string),
+		Admin:                   servercluster.IDName{ID: d.Get("adminid").(int)},
+		Site:                    servercluster.IDName{ID: d.Get("siteid").(int)},
+		VPC:                     servercluster.IDName{ID: d.Get("vpcid").(int)},
+		VPCList:                 vpcMappings,
+		SrvClusterTemplate:      servercluster.IDName{ID: d.Get("templateid").(int)},
+		SrvClusterTemplateVLANs: expandVLANs(d),
+		Tags:                    tags,
+		Servers:                 sortedServers,
 	}
 
 	js, _ := json.Marshal(serverclusterAdd)
@@ -160,7 +284,7 @@ func resourceCreate(d *schema.ResourceData, m interface{}) error {
 	log.Println("[DEBUG] ID:", idStruct.ID)
 
 	if reply.StatusCode != 200 {
-		return fmt.Errorf(string(reply.Data))
+		return fmt.Errorf("%s", reply.Data)
 	}
 
 	d.SetId(strconv.Itoa(idStruct.ID))
@@ -195,6 +319,12 @@ func resourceRead(d *schema.ResourceData, m interface{}) error {
 	if err != nil {
 		return err
 	}
+	if d.Get("vpcmapping").(*schema.Set).Len() == 0 && len(apiServerCluster.VPCList) > 0 {
+		err = d.Set("vpcmapping", flattenVPCMappings(apiServerCluster.VPCList))
+		if err != nil {
+			return err
+		}
+	}
 	err = d.Set("templateid", apiServerCluster.SrvClusterTemplate.ID)
 	if err != nil {
 		return err
@@ -214,6 +344,20 @@ func resourceRead(d *schema.ResourceData, m interface{}) error {
 	err = d.Set("servers", servers)
 	if err != nil {
 		return err
+	}
+
+	if d.Get("vlan").(*schema.Set).Len() == 0 && len(apiServerCluster.SrvClusterTemplate.VLANs) > 0 {
+		vlans := []interface{}{}
+		for _, vlan := range apiServerCluster.SrvClusterTemplate.VLANs {
+			vlans = append(vlans, map[string]interface{}{
+				"postfix": vlan.Postfix,
+				"vlan_id": vlan.VLANID,
+			})
+		}
+		err = d.Set("vlan", vlans)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -282,7 +426,7 @@ func resourceUpdate(d *schema.ResourceData, m interface{}) error {
 	log.Println("[DEBUG] ID:", idStruct.ID)
 
 	if reply.StatusCode != 200 {
-		return fmt.Errorf(string(reply.Data))
+		return fmt.Errorf("%s", reply.Data)
 	}
 
 	return nil
@@ -332,7 +476,7 @@ func resourceDelete(d *schema.ResourceData, m interface{}) error {
 	}
 
 	if reply.StatusCode != 200 {
-		return fmt.Errorf(string(reply.Data))
+		return fmt.Errorf("%s", reply.Data)
 	}
 
 	d.SetId("")
