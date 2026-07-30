@@ -29,6 +29,12 @@ import (
 	api "github.com/netrisai/netriswebapi/v2"
 )
 
+// siteMeshDisabled is the only Site Mesh value still supported by the controller.
+// Site Mesh (site to site VPN) is obsolete: the controller ignores the submitted
+// value and always stores "disabled". The provider keeps sending it explicitly so
+// that older controllers, which still validate this field, accept the request.
+const siteMeshDisabled = "disabled"
+
 func Resource() *schema.Resource {
 	return &schema.Resource{
 		Description: "Creates and manages Sites",
@@ -60,10 +66,13 @@ func Resource() *schema.Resource {
 				Deprecated:   "ROH (Routing on the Host) is obsolete and no longer used. This field will be removed in a future release.",
 			},
 			"sitemesh": {
-				ValidateFunc: validateSiteMesh,
-				Required:     true,
-				Type:         schema.TypeString,
-				Description:  "Site to site VPN mode. Site mesh available values are: `disabled`, `hub`, `spoke`, `dspoke`",
+				ValidateFunc:     validateSiteMesh,
+				DiffSuppressFunc: DiffSuppress,
+				Optional:         true,
+				Computed:         true,
+				Type:             schema.TypeString,
+				Description:      "Site to site VPN mode. The only available value is `disabled`. Legacy values (`hub`, `spoke`, `dspoke`) are accepted but ignored.",
+				Deprecated:       "Site Mesh (site to site VPN) is obsolete and no longer used. The only available value is `disabled`. This field will be removed in a future release.",
 			},
 			"acldefaultpolicy": {
 				ValidateFunc: validateACLPolicy,
@@ -176,7 +185,7 @@ func resourceCreate(d *schema.ResourceData, m interface{}) error {
 		PublicAsn:    publicasn,
 		RohAsn:       rohasn,
 		VMAsn:        vmasn,
-		SiteMesh:     site.IDName{Value: d.Get("sitemesh").(string)},
+		SiteMesh:     site.IDName{Value: siteMeshDisabled},
 		AclPolicy:    d.Get("acldefaultpolicy").(string),
 		SwitchFabric: fabric,
 	}
@@ -346,7 +355,9 @@ func resourceRead(d *schema.ResourceData, m interface{}) error {
 			return err
 		}
 	}
-	err = d.Set("sitemesh", site.SiteMesh.Value)
+	// Site Mesh is obsolete. Newer controllers don't return it at all, so always
+	// report "disabled" instead of an empty value to avoid a permanent diff.
+	err = d.Set("sitemesh", siteMeshDisabled)
 	if err != nil {
 		return err
 	}
@@ -416,7 +427,7 @@ func resourceUpdate(d *schema.ResourceData, m interface{}) error {
 		PublicAsn:    publicasn,
 		RohAsn:       rohasn,
 		VMAsn:        vmasn,
-		SiteMesh:     site.IDName{Value: d.Get("sitemesh").(string)},
+		SiteMesh:     site.IDName{Value: siteMeshDisabled},
 		AclPolicy:    d.Get("acldefaultpolicy").(string),
 		SwitchFabric: fabric,
 	}

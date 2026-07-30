@@ -8,14 +8,13 @@ description: |-
 
 # netris_site
 
-Each separate deployment (each data center) should be defined as a Site. All network units and resources are attached to a site. Netris Controller comes with a “default” site preconfigured. Site entry defines global attributes such as; AS numbers, default ACL policy, and Site Mesh (site to site VPN) type.
+Each separate deployment (each data center) should be defined as a Site. All network units and resources are attached to a site. Netris Controller comes with a “default” site preconfigured. Site entry defines global attributes such as; AS numbers and default ACL policy.
 ## Example Usages
 
 ```hcl
 resource "netris_site" "santa-clara" {
   name              = "Santa Clara"
   publicasn         = 65001
-  sitemesh          = "hub"
   acldefaultpolicy  = "permit"
 }
 ```
@@ -24,7 +23,6 @@ resource "netris_site" "santa-clara" {
 resource "netris_site" "pnap-sea" {
   name              = "phoenixNAP Seattle"
   publicasn         = 65000
-  sitemesh          = "disabled"
   acldefaultpolicy  = "permit"
   switchfabric      = "phoenixnap_bmc"
   switchfabricproviders {
@@ -45,10 +43,10 @@ resource "netris_site" "pnap-sea" {
 - **acldefaultpolicy** (String) Possible values: `permit` or `deny`. Deny - Layer-3 packet forwarding is denied by default. ACLs are required to permit necessary traffic flows. Deny ACLs will be applied before Permit ACLs. Permit - Layer-3 packet forwarding is allowed by default. ACLs are required to deny unwanted traffic flows. Permit ACLs will be applied before Deny ACLs.
 - **name** (String) The name of the site
 - **publicasn** (Number) Site public ASN that should be used for external bgp peer configuration
-- **sitemesh** (String) Site to site VPN mode. Site mesh available values are: `disabled`, `hub`, `spoke`, `dspoke`
 
 ### Optional
 
+- **sitemesh** (String, Deprecated) Site to site VPN mode. Site Mesh is obsolete and no longer used, the only available value is `disabled`. Legacy values (`hub`, `spoke`, `dspoke`) are still accepted but ignored. This field will be removed in a future release.
 - **switchfabric** (String) Type of switch fabric. Possible values: `netris`, `equinix_metal`, `dot1q_trunk`, `phoenixnap_bmc`. Default value is `netris`. 
 - **vlanrange** (String) Range of VLAN IDs allowed for use at this site. Ignoring when switch fabric is set to `netris`. Default value is `2-3999` when switch fabric is set to `equinix_metal`, and `2-4094` when switch fabric is set to `dot1q_trunk` or `phoenixnap_bmc`.
  - **vlanrangeautoassign** (String) The range of VLAN IDs for automatic VLAN assignment. If no specific range is provided and the switch fabric is set to `phoenixnap_bmc` the default range will be `3000-4094`. For all other switch fabric types, the range will match that of the `vlanRange` value."

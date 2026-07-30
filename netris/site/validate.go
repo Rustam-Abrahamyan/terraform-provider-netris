@@ -33,9 +33,13 @@ func validateRoutingProfile(val interface{}, key string) (warns []string, errs [
 
 func validateSiteMesh(val interface{}, key string) (warns []string, errs []error) {
 	v := val.(string)
-	if !(v == "disabled" || v == "hub" || v == "spoke" || v == "dspoke") {
-		errs = append(errs, fmt.Errorf("Site mesh available values are (disabled, hub, spoke, dspoke)"))
-		return warns, errs
+	switch v {
+	case "disabled", "":
+	case "hub", "spoke", "dspoke":
+		// Legacy values are still accepted to keep existing configurations working.
+		warns = append(warns, fmt.Sprintf("Site mesh is obsolete and no longer used. The %q value is ignored, \"disabled\" will be used instead.", v))
+	default:
+		errs = append(errs, fmt.Errorf("Site mesh is obsolete and no longer used. The only available value is (disabled)"))
 	}
 	return warns, errs
 }
