@@ -57,7 +57,7 @@ Attribute Reference:
 - **congestioncontrol** (Boolean) Congestion control.
 - **asicmonitoring** (Boolean) ASIC monitoring.
 - **hwmp** (Boolean) HWMP (Hardware Multi Plane).
-- **aggregatel3vpnprefix** (Boolean) Aggregate L3VPN prefix behavior.
+- **aggregatel3vpnprefix** (Boolean, Deprecated) Aggregate L3VPN prefix behavior. Derived automatically from `refarch` (`true` when `refarch` is `h100_h200_b200_spx_2_tier` or `h100_h200_b200_spx_3_tier`, `false` otherwise).
 - **refarch** (String) GPU reference architecture enum.
 
 <a id="nestedblock--customrule"></a>

@@ -197,7 +197,7 @@ func DataResource() *schema.Resource {
 						"aggregatel3vpnprefix": {
 							Type:        schema.TypeBool,
 							Optional:    true,
-							Description: "Minimize prefix updates over BGP overlay for L3VPN p2p links.",
+							Description: "Minimize prefix updates over BGP overlay for L3VPN p2p links. Deprecated: derived automatically from `refarch`.",
 						},
 						"refarch": {
 							Type:        schema.TypeString,
@@ -381,7 +381,7 @@ func dataResourceRead(d *schema.ResourceData, m interface{}) error {
 	gpuclustersettings["congestioncontrol"] = profile.GpuClusterProps.CongestionControl
 	gpuclustersettings["asicmonitoring"] = profile.GpuClusterProps.AsicMonitoring
 	gpuclustersettings["hwmp"] = profile.GpuClusterProps.Hwmp
-	gpuclustersettings["aggregatel3vpnprefix"] = profile.GpuClusterProps.AggregateL3VpnPrefix
+	gpuclustersettings["aggregatel3vpnprefix"] = aggregateL3VpnPrefixForRefArch(profile.GpuClusterProps.RefArch)
 	gpuclustersettings["refarch"] = profile.GpuClusterProps.RefArch
 	gpuclustersettingsList = append(gpuclustersettingsList, gpuclustersettings)
 
