@@ -34,7 +34,6 @@ resource "netris_inventory_profile" "my-profile" {
     mclag = true
   }
   gpuclustersettings {
-    aggregatel3vpnprefix = true
     asicmonitoring       = false
     congestioncontrol    = false
     hwmp                 = false
@@ -129,7 +128,7 @@ Optional:
 - **congestioncontrol** (Boolean) Enable Zero Touch RoCE Congestion Control. Default value is `false`.
 - **asicmonitoring** (Boolean) Enable ASIC monitoring: Histograms and Telemetry Snapshots. Default value is `false`.
 - **hwmp** (Boolean) Enable HWMP (Hardware Multi Plane). Default value is `false`.
-- **aggregatel3vpnprefix** (Boolean) Minimize prefix updates over BGP Overlay for L3VPN p2p links in rail-optimized topology and IP addressing schemes. Default value is `false`.
+- **aggregatel3vpnprefix** (Boolean, Deprecated) Minimize prefix updates over BGP Overlay for L3VPN p2p links in rail-optimized topology and IP addressing schemes. This field is no longer user-configurable; it is derived automatically from `refarch` (`true` when `refarch` is `h100_h200_b200_spx_2_tier` or `h100_h200_b200_spx_3_tier`, `false` otherwise).
 - **refarch** (String) GPU cluster reference architecture (API field `gpuClusterProps.refArch`). Must be one of the supported enum values:
   - none
   - h100_h200_b200_spx_2_tier

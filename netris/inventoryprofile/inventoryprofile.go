@@ -217,10 +217,12 @@ func Resource() *schema.Resource {
 							Description: "Enable HWMP (Hardware Multi Plane).",
 						},
 						"aggregatel3vpnprefix": {
-							Type:        schema.TypeBool,
-							Optional:    true,
-							Default:     false,
-							Description: "Minimize prefix updates over BGP Overlay for L3VPN p2p links in rail-optimized topology and IP addressing schemes.",
+							Type:             schema.TypeBool,
+							Optional:         true,
+							Computed:         true,
+							DiffSuppressFunc: DiffSuppress,
+							Description:      "Minimize prefix updates over BGP Overlay for L3VPN p2p links in rail-optimized topology and IP addressing schemes.",
+							Deprecated:       "This field is no longer user-configurable. It is now derived automatically from `refarch`: `true` when refarch is `h100_h200_b200_spx_2_tier` or `h100_h200_b200_spx_3_tier`, `false` otherwise.",
 						},
 						"refarch": {
 							Type:         schema.TypeString,
@@ -339,6 +341,13 @@ func DiffSuppress(k, old, new string, d *schema.ResourceData) bool {
 	return true
 }
 
+// aggregateL3VpnPrefixForRefArch derives the deprecated aggregatel3vpnprefix
+// flag from gpuClusterProps.refArch: it is true only for the rail-optimized
+// H100/H200/B200 SPX reference architectures, false otherwise.
+func aggregateL3VpnPrefixForRefArch(refArch string) bool {
+	return refArch == "h100_h200_b200_spx_2_tier" || refArch == "h100_h200_b200_spx_3_tier"
+}
+
 func resourceCreate(d *schema.ResourceData, m interface{}) error {
 	clientset := m.(*api.Clientset)
 
@@ -419,14 +428,15 @@ func resourceCreate(d *schema.ResourceData, m interface{}) error {
 		gpuclustersettingstmp = gpuclustersettingsList[0].(map[string]interface{})
 	}
 
+	gpuClusterRefArch := getStringFromMap("refarch", gpuclustersettingstmp)
 	gpuclustersettings := inventoryprofile.GpuClusterProps{
 		Roce:                 getBool("qosandroce", gpuclustersettingstmp, false),
 		RoceAdaptiveRouting:  getBool("roceadaptiverouting", gpuclustersettingstmp, false),
 		CongestionControl:    getBool("congestioncontrol", gpuclustersettingstmp, false),
 		AsicMonitoring:       getBool("asicmonitoring", gpuclustersettingstmp, false),
 		Hwmp:                 getBool("hwmp", gpuclustersettingstmp, false),
-		AggregateL3VpnPrefix: getBool("aggregatel3vpnprefix", gpuclustersettingstmp, false),
-		RefArch:              getStringFromMap("refarch", gpuclustersettingstmp),
+		AggregateL3VpnPrefix: aggregateL3VpnPrefixForRefArch(gpuClusterRefArch),
+		RefArch:              gpuClusterRefArch,
 	}
 
 	getString := func(key string, inter map[string]interface{}, defaultVal string) string {
@@ -608,7 +618,7 @@ func resourceRead(d *schema.ResourceData, m interface{}) error {
 	gpuclustersettings["congestioncontrol"] = profile.GpuClusterProps.CongestionControl
 	gpuclustersettings["asicmonitoring"] = profile.GpuClusterProps.AsicMonitoring
 	gpuclustersettings["hwmp"] = profile.GpuClusterProps.Hwmp
-	gpuclustersettings["aggregatel3vpnprefix"] = profile.GpuClusterProps.AggregateL3VpnPrefix
+	gpuclustersettings["aggregatel3vpnprefix"] = aggregateL3VpnPrefixForRefArch(profile.GpuClusterProps.RefArch)
 	gpuclustersettings["refarch"] = profile.GpuClusterProps.RefArch
 	gpuclustersettingsList = append(gpuclustersettingsList, gpuclustersettings)
 
@@ -761,14 +771,15 @@ func resourceUpdate(d *schema.ResourceData, m interface{}) error {
 		gpuclustersettingstmp = gpuclustersettingsList[0].(map[string]interface{})
 	}
 
+	gpuClusterRefArch := getStringFromMap("refarch", gpuclustersettingstmp)
 	gpuclustersettings := inventoryprofile.GpuClusterProps{
 		Roce:                 getBool("qosandroce", gpuclustersettingstmp, false),
 		RoceAdaptiveRouting:  getBool("roceadaptiverouting", gpuclustersettingstmp, false),
 		CongestionControl:    getBool("congestioncontrol", gpuclustersettingstmp, false),
 		AsicMonitoring:       getBool("asicmonitoring", gpuclustersettingstmp, false),
 		Hwmp:                 getBool("hwmp", gpuclustersettingstmp, false),
-		AggregateL3VpnPrefix: getBool("aggregatel3vpnprefix", gpuclustersettingstmp, false),
-		RefArch:              getStringFromMap("refarch", gpuclustersettingstmp),
+		AggregateL3VpnPrefix: aggregateL3VpnPrefixForRefArch(gpuClusterRefArch),
+		RefArch:              gpuClusterRefArch,
 	}
 
 	getString := func(key string, inter map[string]interface{}, defaultVal string) string {
