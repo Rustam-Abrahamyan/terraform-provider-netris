@@ -131,6 +131,63 @@ func parseNetQSettings(d *schema.ResourceData) (inventoryprofile.NetQProps, erro
 	return netq, nil
 }
 
+// parseSyslogDestinations reads the syslog_destinations block and builds the SyslogDestinations payload.
+func parseSyslogDestinations(d *schema.ResourceData) (inventoryprofile.SyslogDestinations, error) {
+	syslog := inventoryprofile.SyslogDestinations{Servers: []inventoryprofile.SyslogServer{}}
+	syslogList := d.Get("syslog_destinations").([]interface{})
+	if len(syslogList) == 0 {
+		return syslog, nil
+	}
+	if len(syslogList) > 1 {
+		return syslog, fmt.Errorf("please specify only one syslog_destinations")
+	}
+	syslogtmp, ok := syslogList[0].(map[string]interface{})
+	if !ok {
+		return syslog, nil
+	}
+	if v, ok := syslogtmp["enabled"].(bool); ok {
+		syslog.Enabled = v
+	}
+	if v, ok := syslogtmp["use_rfc5424"].(bool); ok {
+		syslog.UseRfc5424 = v
+	}
+	if rawServers, ok := syslogtmp["servers"].([]interface{}); ok {
+		for _, rs := range rawServers {
+			server, ok := rs.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			port, _ := server["port"].(int)
+			syslog.Servers = append(syslog.Servers, inventoryprofile.SyslogServer{
+				Host:     getStringFromMap("host", server),
+				Port:     int32(port),
+				Protocol: getStringFromMap("protocol", server),
+				Severity: getStringFromMap("severity", server),
+			})
+		}
+	}
+	return syslog, nil
+}
+
+// syslogDestinationsToMap converts the API's SyslogDestinations into the
+// map shape expected by the syslog_destinations Terraform block.
+func syslogDestinationsToMap(syslog inventoryprofile.SyslogDestinations) map[string]interface{} {
+	var servers []map[string]interface{}
+	for _, s := range syslog.Servers {
+		servers = append(servers, map[string]interface{}{
+			"host":     s.Host,
+			"port":     int(s.Port),
+			"protocol": s.Protocol,
+			"severity": s.Severity,
+		})
+	}
+	return map[string]interface{}{
+		"enabled":     syslog.Enabled,
+		"use_rfc5424": syslog.UseRfc5424,
+		"servers":     servers,
+	}
+}
+
 // getStringFromMap returns a trimmed string for key from m, or empty if missing or not a string.
 func getStringFromMap(key string, m map[string]interface{}) string {
 	if m == nil {

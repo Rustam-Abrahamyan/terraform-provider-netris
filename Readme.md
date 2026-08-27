@@ -35,6 +35,7 @@ Compatibility with Netris-Controller
   | `v3.6.15+`       | `v4.12.0+`         |
   | `v3.6.19+`       | `v4.13.0+`         |
   | `v3.6.21+`       | `v4.14.0+`         |
+  | `v3.6.22+`       | `v4.16.0+`         |
 
 Manual Build and Install
 ------------

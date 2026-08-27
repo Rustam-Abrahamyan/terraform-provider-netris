@@ -33,6 +33,7 @@ data "netris_inventory_profile" "my-profile" {
 - **snmpv2** (Block List) SNMPv2 Settings. (see [below for nested schema](#nestedblock--snmpv2))
 - **ztpsettings** (Block List) ZTP settings for inventory profile. (see [below for nested schema](#nestedblock--ztpsettings))
 - **netqsettings** (Block List) NetQ settings for inventory profile. (see [below for nested schema](#nestedblock--netqsettings))
+- **syslog_destinations** (Block List) Syslog Destinations settings for inventory profile. (see [below for nested schema](#nestedblock--syslog_destinations))
 - **description** (String) Inventory profile description
 - **dnsservers** (List of String) List of IP addresses of DNS servers.
 - **ipv4ssh** (List of String) List of IPv4 subnets allowed to ssh.
@@ -98,3 +99,22 @@ Attribute Reference:
 - **enabled** (Boolean) Whether NetQ is enabled.
 - **server_addrs** (List of String) List of NetQ server addresses (IP addresses or domain names).
 - **server_port** (Number) NetQ server port.
+
+<a id="nestedblock--syslog_destinations"></a>
+### Nested Schema for `syslog_destinations`
+
+Attribute Reference:
+
+- **enabled** (Boolean) Whether syslog forwarding is enabled.
+- **use_rfc5424** (Boolean) Whether forwarded messages are formatted per RFC 5424.
+- **servers** (Block List) Syslog destination. (see [below for nested schema](#nestedblock--syslog_destinations--servers))
+
+<a id="nestedblock--syslog_destinations--servers"></a>
+### Nested Schema for `syslog_destinations.servers`
+
+Attribute Reference:
+
+- **host** (String) IPv4, IPv6, or Fully Qualified Domain Name of the syslog destination.
+- **port** (Number) Syslog destination port.
+- **protocol** (String) Transport protocol (`syslogDestinationItem.protocol`).
+- **severity** (String) Minimum severity level to forward (`syslogDestinationItem.severity`).

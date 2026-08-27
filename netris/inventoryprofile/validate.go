@@ -116,6 +116,36 @@ func validateProtocol(val interface{}, key string) (warns []string, errs []error
 	return warns, errs
 }
 
+// validateSyslogProtocol checks a syslog destination's protocol against the API enum.
+func validateSyslogProtocol(val interface{}, key string) (warns []string, errs []error) {
+	v := val.(string)
+	if v != "TCP" && v != "UDP" {
+		errs = append(errs, fmt.Errorf("invalid %s: %q. Available values are (TCP, UDP)", key, v))
+	}
+	return warns, errs
+}
+
+// validateSyslogSeverity checks a syslog destination's severity against the API enum.
+func validateSyslogSeverity(val interface{}, key string) (warns []string, errs []error) {
+	v := val.(string)
+	if _, ok := validSyslogSeverities[v]; !ok {
+		errs = append(errs, fmt.Errorf("invalid %s: %q. Available values are (Emergency, Alert, Critical, Error, Warning, Notice, Informational, Debug)", key, v))
+	}
+	return warns, errs
+}
+
+// validSyslogSeverities matches the Netris API / swagger enum for syslogDestinationItem.severity.
+var validSyslogSeverities = map[string]struct{}{
+	"Emergency":     {},
+	"Alert":         {},
+	"Critical":      {},
+	"Error":         {},
+	"Warning":       {},
+	"Notice":        {},
+	"Informational": {},
+	"Debug":         {},
+}
+
 // validateRefArch checks gpuClusterProps.refArch against the API enum. An empty
 // string is allowed (API may interpret it as unset; use "none" explicitly if
 // you want the documented default).

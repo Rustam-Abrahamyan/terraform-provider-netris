@@ -325,6 +325,66 @@ func Resource() *schema.Resource {
 					},
 				},
 			},
+			"syslog_destinations": {
+				Optional:    true,
+				Type:        schema.TypeList,
+				MaxItems:    1,
+				Description: "Syslog Destinations settings for inventory profile. Devices using this profile forward logs to the configured destinations (up to 4).",
+				Computed:    true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"enabled": {
+							Type:        schema.TypeBool,
+							Optional:    true,
+							Default:     false,
+							Description: "Enable or disable syslog forwarding for devices using this inventory profile.",
+						},
+						"use_rfc5424": {
+							Type:        schema.TypeBool,
+							Optional:    true,
+							Default:     false,
+							Description: "Format forwarded messages per RFC 5424 instead of the platform default.",
+						},
+						"servers": {
+							Optional:    true,
+							Type:        schema.TypeList,
+							MaxItems:    4,
+							Description: "Syslog destination. Up to 4 may be configured.",
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"host": {
+										Type:         schema.TypeString,
+										Required:     true,
+										ValidateFunc: validateNTP,
+										Description:  "IPv4, IPv6, or Fully Qualified Domain Name of the syslog destination.",
+									},
+									"port": {
+										Type:         schema.TypeInt,
+										Optional:     true,
+										Default:      514,
+										ValidateFunc: validatePortNumber,
+										Description:  "Syslog destination port. 1-65535. Defaults to `514`.",
+									},
+									"protocol": {
+										Type:         schema.TypeString,
+										Optional:     true,
+										Default:      "UDP",
+										ValidateFunc: validateSyslogProtocol,
+										Description:  "Transport protocol. Valid value is `TCP` or `UDP`. Defaults to `UDP`.",
+									},
+									"severity": {
+										Type:         schema.TypeString,
+										Optional:     true,
+										Default:      "Informational",
+										ValidateFunc: validateSyslogSeverity,
+										Description:  "Minimum severity level to forward. Valid values are `Emergency`, `Alert`, `Critical`, `Error`, `Warning`, `Notice`, `Informational`, `Debug`. Defaults to `Informational`.",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 		Create: resourceCreate,
 		Read:   resourceRead,
@@ -489,20 +549,26 @@ func resourceCreate(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
+	syslogDestinations, err := parseSyslogDestinations(d)
+	if err != nil {
+		return err
+	}
+
 	profileAdd := &inventoryprofile.ProfileW{
-		Name:            name,
-		Description:     description,
-		Ipv4List:        strings.Join(ipv4List, ","),
-		Ipv6List:        strings.Join(ipv6List, ","),
-		Timezone:        inventoryprofile.Timezone{Label: timezone, TzCode: timezone},
-		NTPServers:      strings.Join(ntpList, ","),
-		DNSServers:      strings.Join(dnsList, ","),
-		CustomRules:     customRules,
-		FabricProps:     fabricsettings,
-		GpuClusterProps: gpuclustersettings,
-		SNMPv2Props:     snmpv2,
-		ZTPProps:        ztpsettings,
-		NetQProps:       netq,
+		Name:               name,
+		Description:        description,
+		Ipv4List:           strings.Join(ipv4List, ","),
+		Ipv6List:           strings.Join(ipv6List, ","),
+		Timezone:           inventoryprofile.Timezone{Label: timezone, TzCode: timezone},
+		NTPServers:         strings.Join(ntpList, ","),
+		DNSServers:         strings.Join(dnsList, ","),
+		CustomRules:        customRules,
+		FabricProps:        fabricsettings,
+		GpuClusterProps:    gpuclustersettings,
+		SNMPv2Props:        snmpv2,
+		ZTPProps:           ztpsettings,
+		NetQProps:          netq,
+		SyslogDestinations: syslogDestinations,
 	}
 
 	js, _ := json.Marshal(profileAdd)
@@ -658,6 +724,11 @@ func resourceRead(d *schema.ResourceData, m interface{}) error {
 		netqsettingsList = append(netqsettingsList, netqsettings)
 	}
 
+	var syslogDestinationsList []map[string]interface{}
+	if profile.SyslogDestinations.Enabled || len(profile.SyslogDestinations.Servers) > 0 {
+		syslogDestinationsList = append(syslogDestinationsList, syslogDestinationsToMap(profile.SyslogDestinations))
+	}
+
 	err = d.Set("customrule", customRules)
 	if err != nil {
 		return err
@@ -684,6 +755,10 @@ func resourceRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 	err = d.Set("netqsettings", netqsettingsList)
+	if err != nil {
+		return err
+	}
+	err = d.Set("syslog_destinations", syslogDestinationsList)
 	if err != nil {
 		return err
 	}
@@ -832,22 +907,28 @@ func resourceUpdate(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
+	syslogDestinations, err := parseSyslogDestinations(d)
+	if err != nil {
+		return err
+	}
+
 	id, _ := strconv.Atoi(d.Id())
 	profileUpdate := &inventoryprofile.ProfileW{
-		ID:              id,
-		Name:            name,
-		Description:     description,
-		Ipv4List:        strings.Join(ipv4List, ","),
-		Ipv6List:        strings.Join(ipv6List, ","),
-		Timezone:        inventoryprofile.Timezone{Label: timezone, TzCode: timezone},
-		NTPServers:      strings.Join(ntpList, ","),
-		DNSServers:      strings.Join(dnsList, ","),
-		CustomRules:     customRules,
-		FabricProps:     fabricsettings,
-		GpuClusterProps: gpuclustersettings,
-		SNMPv2Props:     snmpv2,
-		ZTPProps:        ztpsettings,
-		NetQProps:       netq,
+		ID:                 id,
+		Name:               name,
+		Description:        description,
+		Ipv4List:           strings.Join(ipv4List, ","),
+		Ipv6List:           strings.Join(ipv6List, ","),
+		Timezone:           inventoryprofile.Timezone{Label: timezone, TzCode: timezone},
+		NTPServers:         strings.Join(ntpList, ","),
+		DNSServers:         strings.Join(dnsList, ","),
+		CustomRules:        customRules,
+		FabricProps:        fabricsettings,
+		GpuClusterProps:    gpuclustersettings,
+		SNMPv2Props:        snmpv2,
+		ZTPProps:           ztpsettings,
+		NetQProps:          netq,
+		SyslogDestinations: syslogDestinations,
 	}
 
 	js, _ := json.Marshal(profileUpdate)

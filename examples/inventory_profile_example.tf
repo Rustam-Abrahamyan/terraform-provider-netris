@@ -42,4 +42,23 @@ resource "netris_inventory_profile" "my-profile" {
     server_port  = 32708
   }
 
+  syslog_destinations {
+    enabled     = true
+    use_rfc5424 = true
+
+    servers {
+      host     = "syslog.example.com"
+      port     = 514
+      protocol = "TCP"
+      severity = "Informational"
+    }
+
+    servers {
+      host     = "192.0.2.10"
+      port     = 514
+      protocol = "UDP"
+      severity = "Error"
+    }
+  }
+
 }
