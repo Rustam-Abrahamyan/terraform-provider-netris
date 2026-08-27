@@ -56,6 +56,24 @@ resource "netris_inventory_profile" "my-profile" {
     server_addrs = ["192.0.2.10"]
     server_port  = 32708
   }
+  syslog_destinations {
+    enabled     = true
+    use_rfc5424 = true
+
+    servers {
+      host     = "syslog.example.com"
+      port     = 514
+      protocol = "TCP"
+      severity = "Informational"
+    }
+
+    servers {
+      host     = "192.0.2.10"
+      port     = 514
+      protocol = "UDP"
+      severity = "Error"
+    }
+  }
 }
 ```
 
@@ -76,6 +94,7 @@ resource "netris_inventory_profile" "my-profile" {
 - **snmpv2** (Block List) SNMPv2 Settings. (see [below for nested schema](#nestedblock--snmpv2))
 - **ztpsettings** (Block List) ZTP settings for inventory profile. (see [below for nested schema](#nestedblock--ztpsettings))
 - **netqsettings** (Block List) NetQ settings for inventory profile. (see [below for nested schema](#nestedblock--netqsettings))
+- **syslog_destinations** (Block List, Max: 1) Syslog Destinations settings for inventory profile. Devices using this profile forward logs to the configured destinations (up to 4). (see [below for nested schema](#nestedblock--syslog_destinations))
 - **description** (String) Inventory profile description
 - **dnsservers** (List of String) List of IP addresses of DNS servers. Example `["1.1.1.1", "8.8.8.8"]`
 - **ipv6ssh** (List of String) List of IPv6 subnets allowed to ssh. Example `["2001:DB8::/32"]`
@@ -175,3 +194,25 @@ Optional:
 - **enabled** (Boolean) Whether NetQ is enabled. Defaults to `true` when a `netqsettings` block is present. Set to `false` to keep the configuration but disable NetQ. If the controller reports NetQ as disabled while a `netqsettings` block is configured, Terraform will re-enable it. Default value is `true`.
 - **server_addrs** (List of String) List of NetQ server addresses (IP addresses or domain names).
 - **server_port** (Number) NetQ server port. 1-65535.
+
+<a id="nestedblock--syslog_destinations"></a>
+### Nested Schema for `syslog_destinations`
+
+Optional:
+
+- **enabled** (Boolean) Enable or disable syslog forwarding for devices using this inventory profile. Default value is `false`.
+- **use_rfc5424** (Boolean) Format forwarded messages per RFC 5424 instead of the platform default. Default value is `false`.
+- **servers** (Block List, Max: 4) Syslog destination. Up to 4 may be configured. (see [below for nested schema](#nestedblock--syslog_destinations--servers))
+
+<a id="nestedblock--syslog_destinations--servers"></a>
+### Nested Schema for `syslog_destinations.servers`
+
+Required:
+
+- **host** (String) IPv4, IPv6, or Fully Qualified Domain Name of the syslog destination.
+
+Optional:
+
+- **port** (Number) Syslog destination port. 1-65535. Defaults to `514`.
+- **protocol** (String) Transport protocol. Valid value is `TCP` or `UDP`. Defaults to `UDP`.
+- **severity** (String) Minimum severity level to forward. Valid values are `Emergency`, `Alert`, `Critical`, `Error`, `Warning`, `Notice`, `Informational`, `Debug`. Defaults to `Informational`.

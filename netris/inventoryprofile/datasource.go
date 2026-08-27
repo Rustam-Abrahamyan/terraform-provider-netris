@@ -295,6 +295,56 @@ func DataResource() *schema.Resource {
 					},
 				},
 			},
+			"syslog_destinations": {
+				Optional:    true,
+				Type:        schema.TypeList,
+				MaxItems:    1,
+				Description: "Syslog Destinations settings for inventory profile.",
+				Computed:    true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"enabled": {
+							Type:        schema.TypeBool,
+							Optional:    true,
+							Description: "Whether syslog forwarding is enabled.",
+						},
+						"use_rfc5424": {
+							Type:        schema.TypeBool,
+							Optional:    true,
+							Description: "Whether forwarded messages are formatted per RFC 5424.",
+						},
+						"servers": {
+							Optional:    true,
+							Type:        schema.TypeList,
+							Description: "Syslog destination.",
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"host": {
+										Type:        schema.TypeString,
+										Optional:    true,
+										Description: "IPv4, IPv6, or Fully Qualified Domain Name of the syslog destination.",
+									},
+									"port": {
+										Type:        schema.TypeInt,
+										Optional:    true,
+										Description: "Syslog destination port.",
+									},
+									"protocol": {
+										Type:        schema.TypeString,
+										Optional:    true,
+										Description: "Transport protocol (syslogDestinationItem.protocol).",
+									},
+									"severity": {
+										Type:        schema.TypeString,
+										Optional:    true,
+										Description: "Minimum severity level to forward (syslogDestinationItem.severity).",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 		Read:   dataResourceRead,
 		Exists: dataResourceExists,
@@ -418,6 +468,11 @@ func dataResourceRead(d *schema.ResourceData, m interface{}) error {
 		netqsettingsList = append(netqsettingsList, netqsettings)
 	}
 
+	var syslogDestinationsList []map[string]interface{}
+	if profile.SyslogDestinations.Enabled || len(profile.SyslogDestinations.Servers) > 0 {
+		syslogDestinationsList = append(syslogDestinationsList, syslogDestinationsToMap(profile.SyslogDestinations))
+	}
+
 	err = d.Set("snmpv2", snmpv2List)
 	if err != nil {
 		return err
@@ -427,6 +482,10 @@ func dataResourceRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 	err = d.Set("netqsettings", netqsettingsList)
+	if err != nil {
+		return err
+	}
+	err = d.Set("syslog_destinations", syslogDestinationsList)
 	if err != nil {
 		return err
 	}
